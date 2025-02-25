@@ -16,26 +16,17 @@
 
     <p id="fingerprint">Вычисляется...</p>
 
-    <pre>
+    <!-- <pre>
       userAgent, // Mozilla/5.0 (Windows NT 10.0; Win64; x64) => 10-15 бит
       platform, // Win32 => 3-5 бит
       vendor, // Google Inc. => 1-3 бит
       timeZone, // Europe/Moscow => 5–10 бит
       language, // ru-RU => 3-8 бит
-      isIncognito, // true || false => 1 бит
       localStorageBlocked, // true || false => 1 бит
       canvasFP, // data:image/png;base64,... => 20-30 бит
-    </pre>
+    </pre> -->
 
     <script>
-      async function isIncognitoMode() {
-        return new Promise((resolve) => {
-          const db = indexedDB.open("test");
-          db.onerror = () => resolve(true); // ошибка => инкогнито
-          db.onsuccess = () => resolve(false); // Успешно => обычный режим
-        });
-      }
-
       function isLocalStorageBlocked() {
         try {
           localStorage.setItem("test", "1");
@@ -63,7 +54,6 @@
         const vendor = navigator.vendor;
         const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
         const language = navigator.language;
-        const isIncognito = await isIncognitoMode();
         const localStorageBlocked = isLocalStorageBlocked();
         const canvasFP = getCanvasFingerprint();
 
@@ -73,7 +63,6 @@
           vendor, // Google Inc. => 1-3 бит
           timeZone, // Europe/Moscow => 5–10 бит
           language, // ru-RU => 3-8 бит
-          isIncognito, // true || false => 1 бит
           localStorageBlocked, // true || false => 1 бит
           canvasFP, // data:image/png;base64,... => 20-30 бит
         ].join("|");
