@@ -1,84 +1,265 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Fingerprint example</title>
+    <title>Fingerprint table</title>
+
     <style>
-      * {
-        font-family: Arial, Helvetica, sans-serif;
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 1400px;
+        margin: auto;
+        padding: 40px;
+      }
+
+      #finalHash {
+        font-size: 18px;
+        font-weight: bold;
+        margin-bottom: 20px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+      }
+
+      th,
+      td {
+        border: 1px solid #ccc;
+        padding: 8px;
+        text-align: left;
+        vertical-align: top;
+        word-break: break-word;
+      }
+
+      th {
+        background-color: #f4f4f4;
       }
     </style>
   </head>
 
   <body>
-    <h1 style="color: darkblue">Custom fingerprint</h1>
+    <div id="finalHash">Итоговый хэш: ...</div>
 
-    <p id="fingerprint">Вычисляется...</p>
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 200px">Источник</th>
+          <th>Значение</th>
+          <th>Хэш значения</th>
+        </tr>
+      </thead>
 
-    <!-- <pre>
-      userAgent, // Mozilla/5.0 (Windows NT 10.0; Win64; x64) => 10-15 бит
-      platform, // Win32 => 3-5 бит
-      vendor, // Google Inc. => 1-3 бит
-      timeZone, // Europe/Moscow => 5–10 бит
-      language, // ru-RU => 3-8 бит
-      localStorageBlocked, // true || false => 1 бит
-      canvasFP, // data:image/png;base64,... => 20-30 бит
-    </pre> -->
+      <tbody id="entropyTable"></tbody>
+    </table>
 
     <script>
-      function isLocalStorageBlocked() {
+      async function sha256(str) {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(str);
+        const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+
+        return Array.from(new Uint8Array(hashBuffer))
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("");
+      }
+
+      async function getEntropySources() {
+        return [
+          {
+            name: "User-Agent",
+            value: navigator.userAgent,
+          },
+          {
+            name: "Platform",
+            value: navigator.platform,
+          },
+          {
+            name: "Timezone",
+            value: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          },
+          {
+            name: "Language",
+            value: navigator.language,
+          },
+          {
+            name: "Languages",
+            value: navigator.languages.join(", "),
+          },
+          {
+            name: "Screen Resolution",
+            value: `${screen.width}x${screen.height}x${screen.colorDepth}`,
+          },
+          {
+            name: "CPU Cores",
+            value: navigator.hardwareConcurrency || "Unknown - CPU Cores",
+          },
+          {
+            name: "Touch Support",
+            value: navigator.maxTouchPoints || "Unknown - Touch Support",
+          },
+          {
+            name: "Memory (RAM)",
+            value: navigator.deviceMemory || "Unknown - Memory (RAM)",
+          },
+          {
+            name: "Connection Type",
+            value: getConnectionType(),
+          },
+          {
+            name: "Navigator Vendor",
+            value: navigator.vendor,
+          },
+          {
+            name: "Cookies Enabled",
+            value: navigator.cookieEnabled.toString(),
+          },
+          {
+            name: "Do Not Track",
+            value: navigator.doNotTrack || "Unknown - Do Not Track",
+          },
+          {
+            name: "Device Pixel Ratio",
+            value: window.devicePixelRatio.toString(),
+          },
+          {
+            name: "WebGL Renderer",
+            value: getWebGLRenderer(),
+          },
+          {
+            name: "Plugins",
+            value: getPluginsList(),
+          },
+          {
+            name: "Canvas Fingerprint",
+            value: await getCanvasFingerprint(),
+          },
+          {
+            name: "Audio Fingerprint",
+            value: await getAudioFingerprint(),
+          },
+          {
+            name: "Media Devices",
+            value: await getMediaDevices(),
+          },
+        ];
+      }
+
+      function getWebGLRenderer() {
         try {
-          localStorage.setItem("test", "1");
-          localStorage.removeItem("test");
-          return false; // ок
+          const canvas = document.createElement("canvas");
+
+          const gl =
+            canvas.getContext("webgl") ||
+            canvas.getContext("experimental-webgl");
+
+          if (!gl) {
+           return "Unavailable";
+          }
+
+          const debugInfo = gl.getExtension("WEBGL_debug_renderer_info");
+
+          return debugInfo
+            ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)
+            : "Unknown - WebGL Renderer";
         } catch (e) {
-          return true; // ошибка => инкогнито
+          return "Error";
         }
       }
 
-      function getCanvasFingerprint() {
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
+      async function getCanvasFingerprint() {
+        try {
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+          ctx.textBaseline = "top";
+          ctx.font = "14px Arial";
+          ctx.fillText("Fingerprinting Test", 2, 2);
 
-        ctx.textBaseline = "top";
-        ctx.font = "14px Arial";
-        ctx.fillText("Fingerprinting Test", 10, 10);
-
-        return canvas.toDataURL(); // генерируем fingerprint
+          return canvas.toDataURL();
+        } catch (e) {
+          return "Error";
+        }
       }
 
-      async function getStableFingerprint() {
-        const userAgent = navigator.userAgent;
-        const platform = navigator.platform;
-        const vendor = navigator.vendor;
-        const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        const language = navigator.language;
-        const localStorageBlocked = isLocalStorageBlocked();
-        const canvasFP = getCanvasFingerprint();
+      async function getAudioFingerprint() {
+        try {
+          const ctx = new (window.AudioContext || window.webkitAudioContext)();
+          const oscillator = ctx.createOscillator();
+          const analyser = ctx.createAnalyser();
+          const gain = ctx.createGain();
 
-        const fingerprintData = [
-          userAgent, // Mozilla/5.0 (Windows NT 10.0; Win64; x64) => 10-15 бит
-          platform, // Win32 => 3-5 бит
-          vendor, // Google Inc. => 1-3 бит
-          timeZone, // Europe/Moscow => 5–10 бит
-          language, // ru-RU => 3-8 бит
-          localStorageBlocked, // true || false => 1 бит
-          canvasFP, // data:image/png;base64,... => 20-30 бит
-        ].join("|");
+          oscillator.connect(gain);
+          gain.connect(analyser);
+          analyser.connect(ctx.destination);
+          oscillator.start(0);
 
-        return crypto.subtle
-          .digest("SHA-256", new TextEncoder().encode(fingerprintData))
-          .then((hashBuffer) => {
-            return Array.from(new Uint8Array(hashBuffer))
-              .map((byte) => byte.toString(16).padStart(2, "0"))
-              .join("");
-          });
+          await new Promise((resolve) => setTimeout(resolve, 100));
+
+          const buffer = new Float32Array(analyser.frequencyBinCount);
+          analyser.getFloatFrequencyData(buffer);
+
+          oscillator.stop();
+
+          return buffer.slice(0, 10).join(",");
+        } catch (e) {
+          return "Error";
+        }
       }
 
-      getStableFingerprint().then((fp) => {
-        document.getElementById("fingerprint").textContent = fp;
-      });
+      function getConnectionType() {
+        return navigator.connection
+          ? navigator.connection.effectiveType || "Unknown - Connection Type"
+          : "Unavailable";
+      }
+
+      function getPluginsList() {
+        return navigator.plugins.length
+          ? Array.from(navigator.plugins)
+              .map((p) => p.name)
+              .join(", ")
+          : "None";
+      }
+
+      async function getMediaDevices() {
+        try {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+
+          return (
+            devices.map((d) => d.kind + ": " + d.label).join(", ") || "None"
+          );
+        } catch (e) {
+          return "Error";
+        }
+      }
+
+      async function populateTable() {
+        const tableBodyEl = document.getElementById("entropyTable");
+        const finalHashEl = document.getElementById("finalHash");
+
+        const sources = await getEntropySources();
+
+        let combinedHashInput = "";
+
+        for (const source of sources) {
+          const hash = await sha256(source.value);
+          combinedHashInput += hash;
+
+          const row = `<tr>
+                    <td>${source.name}</td>
+                    <td>${source.value}</td>
+                    <td>${hash}</td>
+                </tr>`;
+          tableBodyEl.innerHTML += row;
+        }
+
+        // генерируем итоговый хэш
+        const finalHashValue = await sha256(combinedHashInput);
+        finalHashEl.textContent = `Итоговый хэш: ${finalHashValue}`;
+      }
+
+      populateTable();
     </script>
   </body>
 </html>
